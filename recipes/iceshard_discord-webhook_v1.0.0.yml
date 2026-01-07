@@ -1,0 +1,60 @@
+name: iceshard/discord-webhook
+version: 1.0.0
+title: Discord Webhook
+description: |-
+  Send messages using a simple discord webhook APP. Supports basic mention filtering, allows overriding of the avatar image.
+  This script uses "google/Gson @ 2.10.1" and "kittinunf/fuel @ v2.3.1" to build the json payload and perform the api request.
+
+  The webhook API used is described under this URL [Discord - Execute Webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook).
+inputs:
+  - discord-webhook:
+      type: password
+      required: true
+      label: Discord WebHook
+  - env.discord-username:
+      type: text
+      required: true
+      label: Username
+      default: TeamCity Bot
+  - env.discord-avatar:
+      type: text
+      required: false
+      label: Avatar URL
+  - env.discord-message:
+      type: text
+      required: true
+      label: Message Content
+      default: "Hello, World!"
+  - env.discord-allowed-mentions:
+      type: text
+      required: false
+      label: Allowed Mentions
+      description: "Comma delimited list of allowed mentions. Allowed values: 'users', 'roles' and 'everyone'"
+      default: everyone
+steps:
+  - name: Send Message
+    kotlin-script: |-
+      @file:Repository("https://jcenter.bintray.com")
+      @file:DependsOn("com.google.code.gson:gson:2.10.1")
+      @file:DependsOn("com.github.kittinunf.fuel:fuel:2.3.1")
+      @file:DependsOn("com.github.kittinunf.fuel:fuel-gson:2.3.1")
+
+      import com.github.kittinunf.fuel.core.extensions.jsonBody
+      import com.github.kittinunf.fuel.httpPost
+      import com.google.gson.Gson
+      import com.google.gson.JsonSyntaxException
+
+      data class AllowedMentions(var parse: List<String>? = null)
+      data class Payload(var content: String, var username: String, var avatar_url: String? = null, var allowed_mentions: AllowedMentions? = null)
+
+      val payload = Payload(
+        content = System.getenv("discord-message"),
+        username = "TeamCity Bot",
+        avatar_url = System.getenv("discord-avatar"),
+        allowed_mentions = AllowedMentions(System.getenv("discord-allowed-mentions").split(","))
+      )
+
+      val (_, _, result) = "%discord-webhook%".httpPost()
+          .jsonBody(Gson().toJson(payload).toString())
+          .responseString()
+      println(result)
