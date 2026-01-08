@@ -1,11 +1,11 @@
 name: iceshard/discord-webhook
-version: 1.0.0
-title: Discord Webhook
+version: 1.0.1
+title: Discord - Webhook
 description: |-
   Send messages using a simple discord webhook APP. Supports basic mention filtering, allows overriding of the avatar image.
   This script uses "google/Gson @ 2.10.1" and "kittinunf/fuel @ v2.3.1" to build the json payload and perform the api request.
 
-  The webhook API used is described under this URL [Discord - Execute Webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook).
+  The webhook is described here: https://discord.com/developers/docs/resources/webhook#execute-webhook
 inputs:
   - discord-webhook:
       type: password
@@ -49,7 +49,7 @@ steps:
 
       val payload = Payload(
         content = System.getenv("discord-message"),
-        username = "TeamCity Bot",
+        username = System.getenv("discord-username"),
         avatar_url = System.getenv("discord-avatar"),
         allowed_mentions = AllowedMentions(System.getenv("discord-allowed-mentions").split(","))
       )
