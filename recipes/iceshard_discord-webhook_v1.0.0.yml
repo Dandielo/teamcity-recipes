@@ -1,5 +1,5 @@
 name: iceshard/discord-webhook
-version: 1.0.1
+version: 1.0.2
 title: Discord - Webhook
 description: |-
   Send messages using a simple discord webhook APP. Supports basic mention filtering, allows overriding of the avatar image.
@@ -29,32 +29,63 @@ inputs:
       type: text
       required: false
       label: Allowed Mentions
-      description: "Comma delimited list of allowed mentions. Allowed values: 'users', 'roles' and 'everyone'"
+      description: "Comma delimited list of allowed mentions. Allowed values: users,\
+        \ roles and everyone"
       default: everyone
 steps:
   - name: Send Message
     kotlin-script: |-
+      @file:Repository("https://download.jetbrains.com/teamcity-repository/")
+      @file:DependsOn("org.jetbrains.teamcity:serviceMessages:2025.11")
       @file:Repository("https://jcenter.bintray.com")
       @file:DependsOn("com.google.code.gson:gson:2.10.1")
       @file:DependsOn("com.github.kittinunf.fuel:fuel:2.3.1")
       @file:DependsOn("com.github.kittinunf.fuel:fuel-gson:2.3.1")
 
+      import jetbrains.buildServer.messages.serviceMessages.ServiceMessage
+      import jetbrains.buildServer.messages.serviceMessages.ServiceMessageTypes.MESSAGE
+      import jetbrains.buildServer.messages.serviceMessages.ServiceMessageTypes.BUILD_PROBLEM
+
       import com.github.kittinunf.fuel.core.extensions.jsonBody
       import com.github.kittinunf.fuel.httpPost
+      import com.github.kittinunf.result.Result;
       import com.google.gson.Gson
       import com.google.gson.JsonSyntaxException
 
       data class AllowedMentions(var parse: List<String>? = null)
       data class Payload(var content: String, var username: String, var avatar_url: String? = null, var allowed_mentions: AllowedMentions? = null)
 
+      // Build the "AllowedMentions" payload object
+      val mentionRules = System.getenv("discord-allowed-mentions").split(",").filter{ it.isNotEmpty() }
+      val allowedMentions = AllowedMentions(mentionRules).takeIf{ mentionRules.isNotEmpty() }
+
+      // Build the final payload object
       val payload = Payload(
         content = System.getenv("discord-message"),
         username = System.getenv("discord-username"),
         avatar_url = System.getenv("discord-avatar"),
-        allowed_mentions = AllowedMentions(System.getenv("discord-allowed-mentions").split(","))
+        allowed_mentions = allowedMentions
       )
 
-      val (_, _, result) = "%discord-webhook%".httpPost()
-          .jsonBody(Gson().toJson(payload).toString())
+      // Build the Json representation
+      val jsonPayload = Gson().toJson(payload).toString()
+
+      val (_, response, result) = "%discord-webhook%".httpPost()
+          .jsonBody(jsonPayload)
           .responseString()
-      println(result)
+
+      when(result) {
+        is Result.Failure -> {
+          val jsonRequest = ServiceMessage.asString(
+              MESSAGE,
+              mapOf("status" to "error", "text" to "Request Payload: $jsonPayload")
+          )
+          val webResponse = ServiceMessage.asString(
+              BUILD_PROBLEM,
+              mapOf("description" to response.toString())
+          )
+          println(jsonRequest)
+          println(webResponse)
+        }
+        is Result.Success -> println("Success!")
+      }
